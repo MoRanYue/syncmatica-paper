@@ -11,13 +11,14 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /** Per-connection protocol state for one player: the partner's feature set, active exchanges, and send path. */
 public final class ExchangeTarget {
 
     private final Player player;
     private final SyncmaticaContext context;
-    private final List<Exchange> exchanges = new ArrayList<>();
+    private final List<Exchange> exchanges = new CopyOnWriteArrayList<>();
     private FeatureSet featureSet = new FeatureSet(EnumSet.noneOf(Feature.class));
 
     public ExchangeTarget(Player player, SyncmaticaContext context) {

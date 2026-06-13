@@ -9,11 +9,11 @@ import ch.uemasa.syncmatica.data.PlayerIdentifierProvider;
 import ch.uemasa.syncmatica.data.ServerPlacement;
 import ch.uemasa.syncmatica.data.SyncmaticManager;
 import ch.uemasa.syncmatica.net.ChannelMessageListener;
+import ch.uemasa.syncmatica.util.FoliaCompat;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.Messenger;
-import org.bukkit.scheduler.BukkitTask;
 
 import java.nio.file.Path;
 
@@ -27,7 +27,7 @@ public final class SyncmaticaPlugin extends JavaPlugin {
     private static final long SWEEP_PERIOD_TICKS = 20L * 20L;
 
     private SyncmaticaContext context;
-    private BukkitTask staleSweepTask;
+    private FoliaCompat.TaskHandle staleSweepTask;
 
     @Override
     public void onEnable() {
@@ -49,6 +49,7 @@ public final class SyncmaticaPlugin extends JavaPlugin {
 
         PlayerIdentifierProvider players = new PlayerIdentifierProvider();
         SyncmaticManager syncManager = new SyncmaticManager(placementsFile, players, getLogger());
+        syncManager.setPluginRef(this);
         FileStorage fileStorage = new FileStorage(blobFolder);
         QuotaService quota = new QuotaService(config.isQuotaEnabled(), config.getQuotaLimit());
 
@@ -73,7 +74,7 @@ public final class SyncmaticaPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ConnectionListener(comms), this);
         new SyncmaticaCommand(context).register(this);
 
-        staleSweepTask = getServer().getScheduler().runTaskTimer(
+        staleSweepTask = FoliaCompat.runTaskTimer(
                 this, () -> comms.sweepStaleExchanges(EXCHANGE_TIMEOUT_MILLIS),
                 SWEEP_PERIOD_TICKS, SWEEP_PERIOD_TICKS);
 
@@ -96,7 +97,8 @@ public final class SyncmaticaPlugin extends JavaPlugin {
             staleSweepTask = null;
         }
         if (context != null) {
-            context.syncManager.save();
+            // Shutdown save must always be synchronous so data is flushed before the JVM exits.
+            context.syncManager.saveSync();
         }
         getLogger().info("SyncmaticaPaper disabled.");
     }

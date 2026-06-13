@@ -1,5 +1,6 @@
 package ch.uemasa.syncmatica.data;
 
+import ch.uemasa.syncmatica.util.FoliaCompat;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -33,6 +34,17 @@ public final class SyncmaticManager {
     private final Path file;
     private final PlayerIdentifierProvider players;
     private final Logger logger;
+
+    // On Folia the plugin reference is needed for async scheduling; null on Paper if never set.
+    private volatile org.bukkit.plugin.java.JavaPlugin pluginRef;
+
+    /**
+     * Grants the manager a plugin reference so it can schedule async I/O on Folia.
+     * Safe to call at any time; on Paper this is a no-op.
+     */
+    public void setPluginRef(org.bukkit.plugin.java.JavaPlugin plugin) {
+        this.pluginRef = plugin;
+    }
 
     public SyncmaticManager(Path file, PlayerIdentifierProvider players, Logger logger) {
         this.file = file;
@@ -94,26 +106,53 @@ public final class SyncmaticManager {
     }
 
     public void save() {
+        // Build the JSON bytes synchronously (fast, just in-memory) then hand off
+        // the blocking I/O to either the current thread (Paper) or the async scheduler (Folia).
+        JsonObject root = serializeToJson();
+        byte[] jsonBytes = GSON.toJson(root).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        if (FoliaCompat.isFolia() && pluginRef != null) {
+            // On Folia the call may originate from a region thread; never block it with file I/O.
+            final Path f = this.file;
+            final Logger log = this.logger;
+            FoliaCompat.runAsync(pluginRef, () -> writeJsonBytes(f, jsonBytes, log), null);
+        } else {
+            writeJsonBytes(file, jsonBytes, logger);
+        }
+    }
+
+    /**
+     * Synchronous save, used only during {@code onDisable()} where the JVM is about to exit
+     * and async tasks may not have time to complete. Always writes on the calling thread.
+     */
+    public void saveSync() {
+        JsonObject root = serializeToJson();
+        byte[] jsonBytes = GSON.toJson(root).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        writeJsonBytes(file, jsonBytes, logger);
+    }
+
+    private JsonObject serializeToJson() {
+        JsonArray arr = new JsonArray();
+        for (ServerPlacement p : placements.values()) {
+            arr.add(toJson(p));
+        }
+        JsonObject root = new JsonObject();
+        root.add(KEY_PLACEMENTS, arr);
+        return root;
+    }
+
+    private static void writeJsonBytes(Path file, byte[] jsonBytes, Logger log) {
         try {
             Files.createDirectories(file.getParent());
-            JsonArray arr = new JsonArray();
-            for (ServerPlacement p : placements.values()) {
-                arr.add(toJson(p));
-            }
-            JsonObject root = new JsonObject();
-            root.add(KEY_PLACEMENTS, arr);
-
             Path tmp = file.resolveSibling(file.getFileName() + ".new");
             Path bak = file.resolveSibling(file.getFileName() + ".bak");
-            try (Writer writer = Files.newBufferedWriter(tmp)) {
-                GSON.toJson(root, writer);
-            }
+            Files.write(tmp, jsonBytes);
             if (Files.exists(file)) {
                 Files.move(file, bak, StandardCopyOption.REPLACE_EXISTING);
             }
             Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            logger.warning("Failed to save placements.json: " + e.getMessage());
+            log.warning("Failed to save placements.json: " + e.getMessage());
         }
     }
 

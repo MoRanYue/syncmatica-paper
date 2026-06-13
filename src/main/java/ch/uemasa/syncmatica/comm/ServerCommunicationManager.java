@@ -16,12 +16,11 @@ import ch.uemasa.syncmatica.net.SyncmaticaPacket;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Server-side protocol hub: tracks connections, drives the handshake, routes incoming packets to active
@@ -35,15 +34,15 @@ public final class ServerCommunicationManager {
 
     private final SyncmaticaContext context;
 
-    private final Map<UUID, ExchangeTarget> targets = new HashMap<>();
-    private final Set<ExchangeTarget> broadcastTargets = new HashSet<>();
+    private final Map<UUID, ExchangeTarget> targets = new ConcurrentHashMap<>();
+    private final Set<ExchangeTarget> broadcastTargets = ConcurrentHashMap.newKeySet();
     // Active modifiers keyed by placement id; holding the exchange (not just a flag) lets a remove cancel
     // the in-flight editor so a late MODIFY_FINISH can't re-broadcast a removed placement.
-    private final Map<UUID, ModifyExchangeServer> modifiers = new HashMap<>();
+    private final Map<UUID, ModifyExchangeServer> modifiers = new ConcurrentHashMap<>();
 
     // In-flight shares keyed by content hash: duplicate shares of a hash already downloading are queued
     // here rather than re-transferred, then completed or cancelled as a batch when the download finishes.
-    private final Map<UUID, List<PendingShare>> downloading = new HashMap<>();
+    private final Map<UUID, List<PendingShare>> downloading = new ConcurrentHashMap<>();
 
     private record PendingShare(ServerPlacement placement, ExchangeTarget target) {
     }

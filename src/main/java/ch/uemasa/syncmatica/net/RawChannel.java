@@ -54,8 +54,11 @@ public final class RawChannel {
             Class<?> craftPlayer = Class.forName("org.bukkit.craftbukkit.entity.CraftPlayer");
             getHandle = craftPlayer.getMethod("getHandle");
             Class<?> serverPlayer = getHandle.getReturnType();
-            connection = serverPlayer.getField("connection");
-            connection.setAccessible(true);
+
+            // Try the standard "connection" field first (Paper / vanilla Mojmap / Folia 26.1).
+            // On some Folia builds the field may be named differently; fall back to searching
+            // for the first field of the correct type (net.minecraft.server.network.ServerGamePacketListenerImpl).
+            connection = findConnectionField(serverPlayer);
 
             Class<?> packetIface = Class.forName("net.minecraft.network.protocol.Packet");
             send = connection.getType().getMethod("send", packetIface);
@@ -98,5 +101,44 @@ public final class RawChannel {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Syncmatica raw send failed", e);
         }
+    }
+
+    /**
+     * Attempts to locate the {@code connection} field on a {@code ServerPlayer}
+     * (or equivalent). Tries the common name {@code "connection"} first, then
+     * falls back to finding any field whose type is a {@code ServerGamePacketListenerImpl}.
+     */
+    private static Field findConnectionField(Class<?> serverPlayerClass) throws NoSuchFieldException {
+        // Primary: exact name match
+        try {
+            Field f = serverPlayerClass.getField("connection");
+            f.setAccessible(true);
+            return f;
+        } catch (NoSuchFieldException ignored) {
+            // Fall through to type-based search
+        }
+
+        // Secondary: search by type – handles remapped / alternative field names on some Folia builds.
+        for (Field f : serverPlayerClass.getFields()) {
+            Class<?> type = f.getType();
+            if ("net.minecraft.server.network.ServerGamePacketListenerImpl".equals(type.getName())
+                    || "net.minecraft.server.level.ServerPlayerGamePacketListenerImpl".equals(type.getName())
+                    || type.getSimpleName().contains("PacketListenerImpl")) {
+                f.setAccessible(true);
+                return f;
+            }
+        }
+
+        // Search declared fields too (private fields in the class hierarchy).
+        for (Field f : serverPlayerClass.getDeclaredFields()) {
+            Class<?> type = f.getType();
+            if ("net.minecraft.server.network.ServerGamePacketListenerImpl".equals(type.getName())
+                    || type.getSimpleName().contains("PacketListenerImpl")) {
+                f.setAccessible(true);
+                return f;
+            }
+        }
+
+        throw new NoSuchFieldException("Cannot find 'connection' field on " + serverPlayerClass.getName());
     }
 }

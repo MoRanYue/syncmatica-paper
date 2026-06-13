@@ -2,9 +2,9 @@ package ch.uemasa.syncmatica.data;
 
 import ch.uemasa.syncmatica.Reference;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Interns {@link PlayerIdentifier}s so each UUID maps to a single shared instance. Identities are
@@ -15,7 +15,7 @@ public final class PlayerIdentifierProvider {
     public static final PlayerIdentifier MISSING_PLAYER =
             new PlayerIdentifier(Reference.MISSING_PLAYER_UUID, Reference.MISSING_PLAYER_NAME);
 
-    private final Map<UUID, PlayerIdentifier> identifiers = new HashMap<>();
+    private final Map<UUID, PlayerIdentifier> identifiers = new ConcurrentHashMap<>();
 
     public PlayerIdentifierProvider() {
         identifiers.put(Reference.MISSING_PLAYER_UUID, MISSING_PLAYER);

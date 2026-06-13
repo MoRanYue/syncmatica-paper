@@ -1,7 +1,7 @@
 package ch.uemasa.syncmatica.config;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Per-uploader byte-quota accounting. Counters are in-memory and reset each server start.
@@ -10,7 +10,7 @@ public final class QuotaService {
 
     private final boolean enabled;
     private final long limit;
-    private final Map<String, Long> progress = new HashMap<>();
+    private final Map<String, Long> progress = new ConcurrentHashMap<>();
 
     public QuotaService(boolean enabled, long limit) {
         this.enabled = enabled;
