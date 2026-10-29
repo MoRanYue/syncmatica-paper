@@ -20,7 +20,7 @@ dependencies {
     // Paper API for MC 26.1.x. Unobfuscated since 26.1 — no remapping needed.
     // New (2026) version scheme: <year>.<drop>.<patch>.build.<n>-<channel>.
     // Pinned to the latest stable build for reproducible builds; bump as needed.
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.68-stable")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.230-stable")
 
     // Bundled (shaded + relocated) so the plugin's own JSON handling never clashes
     // with whatever Gson version the server or other plugins ship.
@@ -74,6 +74,6 @@ tasks {
 
     runServer {
         // The Paper version the dev server will download and launch.
-        minecraftVersion("26.1.2")
+        minecraftVersion("26.3")
     }
 }
